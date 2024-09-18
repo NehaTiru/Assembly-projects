@@ -1,0 +1,224 @@
+
+main:
+    ADDI X20, XZR, #512         // N = 512
+    ADD X0, XZR, XZR            // X0 is the array address (a)
+    ADD X1, XZR, X20            // X1 is the number of elements (n)
+    ADDI SP, SP, #-16
+    STUR X0, [SP, #0]
+    STUR X1, [SP, #8]
+    PRNT X0
+    PRNL
+    PRNT X1
+    PRNL
+    BL fill
+    LDUR X0, [SP, #0]
+    LDUR X1, [SP, #8]
+    PRNT X0
+    PRNL
+    PRNT X1
+    PRNL
+    BL insertion_sort
+    LDUR X0, [SP, #0]
+    ADDI X1, XZR, #0
+    LDUR X2, [SP, #8]
+    SUBI X2, X2, #1
+    ADDI X3, XZR, #0            // search smallest value (always 0)
+    BL binary_search
+    PRNT X0
+    PRNL
+    LDUR X0, [SP, #0]
+    ADDI X1, XZR, #0
+    LDUR X2, [SP, #8]
+    SUBI X2, X2, #1
+    LDUR X3, [SP, #8]           // search largest value (elements - 1)
+    SUBI X3, X3, #1
+    BL binary_search
+    PRNT X0
+    PRNL
+    LDUR X0, [SP, #0]
+    ADDI X1, XZR, #0
+    LDUR X2, [SP, #8]
+    SUBI X2, X2, #1
+    LDUR X3, [SP, #8]           // search middle value (elements / 2)
+    LSR X3, X3, #1              // LSR #1 acts as a division by 2
+    BL binary_search
+    PRNT X0
+    PRNL
+    LDUR X0, [SP, #0]
+    ADDI X1, XZR, #0
+    LDUR X2, [SP, #8]
+    SUBI X2, X2, #1
+    LDUR X3, [SP, #8]           // search value outside range (value of elements is not in the range!)
+    BL binary_search
+    PRNT X0
+    PRNL
+    ADDI SP, SP, #16
+    B end
+
+fill:
+    PRNT X0
+    PRNL
+    PRNT X1
+    PRNL
+    ADD X9, X0, XZR             // X9 is the array address (a) --> X0
+    ADD X10, X1, XZR            // X10 is the number of elements (n) --> X1
+    fill_loop:
+        SUBI X10, X10, #1
+        STUR X10, [X9, #0]
+        ADDI X9, X9, #8
+        SUBS XZR, X10, XZR
+        B.NE fill_loop
+    BR LR
+
+is_insert:
+    PRNT X0
+    PRNL
+    PRNT X1
+    PRNL
+    PRNT X2
+    PRNL
+    LSL X2, X2, #3              // Calculate byte offset (where * 8)
+    ADD X2, X0, X2              // Calculate final address (a + offset)
+    STUR X1, [X2, #0]           // Store 'what' into the array
+    BR LR
+is_shift:
+    PRNT X0
+    PRNL
+    PRNT X1
+    PRNL
+    ADD X9, X0, XZR             // X9 = a, copy base address of the array
+    ADD X10, X1, XZR            // X10 = end, copy the 'end' index
+    SUBI SP, SP, #16            // Allocate space on the stack for saving registers
+    STUR X19, [SP, #0]          // Save X19 on the stack
+    STUR X20, [SP, #8]          // Save X20 on the stack
+    LSL X14, X10, #3            // X14 = end << 3 (calculate byte offset for 'end')
+    ADD X14, X9, X14            // Add base address of the array to the offset
+    LDUR X11, [X14, #0]         // Load the value at a[end] into X11
+    SUBI X12, X10, #1           // Prepare X12 = end - 1 for the loop
+    PRNT X9
+    PRNL
+    PRNT X10
+    PRNL
+    PRNT X11
+    PRNL
+    PRNT X12
+    PRNL
+
+is_shift_loop:
+    SUBS XZR, X12, XZR          // Compare X12 with 0
+    B.LT is_shift_done          // If X12 < 0, we've reached the start of the array, exit loop
+    LSL X15, X12, #3            // X15 = X12 << 3 (calculate byte offset for 'X12')
+    ADD X15, X9, X15            // Add base address of the array to the offset
+    LDUR X13, [X15, #0]         // Load the value at a[X12] into X13
+    PRNT X13                    // Debug: Print the value of X13 (a[X12])
+    PRNL
+    SUBS XZR, X13, X11          // Compare a[X12] with a[end]
+    B.GT is_shift_shift         // If a[X12] > a[end], we need to shift elements
+
+is_shift_insert:
+    ADDI X15, X15, #8           // Adjust X15 to point to the correct insert position
+    STUR X11, [X15, #0]         // Insert the saved value into its correct position
+    SUBI X12, X12, #1           // Decrement X12 to move towards the start of the array
+    B is_shift_loop             // Continue loop
+
+is_shift_shift:
+    ADDI X16, X12, #1           // X16 = X12 + 1
+is_shift_shift_loop:
+    SUBS XZR, X16, X10          // Compare X16 with end
+    B.GE is_shift_insert        // If X16 >= end, we've shifted all elements, insert a[end]
+    LSL X17, X16, #3            // X17 = X16 << 3 (calculate byte offset for 'X16')
+    ADD X17, X9, X17            // Add base address of the array to the offset
+    LDUR X18, [X17, #0]         // Load the value at a[X16] into X18
+    ADDI X17, X17, #8           // Increment X17 to point to a[X16+1]
+    LDUR X19, [X17, #0]         // Load the value at a[X16+1] into X19
+    STUR X19, [X17, #-8]        // Store X19 (a[X16+1]) at a[X16]
+    STUR X18, [X17, #0]         // Store X18 (a[X16]) at a[X16+1]
+    ADDI X16, X16, #1           // Increment X16
+    B is_shift_shift_loop       // Continue loop
+
+is_shift_done:
+    ADDI X0, X12, #1            // Adjust the return value to be the index of the hole
+    LDUR X19, [SP, #0]          // Restore X19 from the stack
+    LDUR X20, [SP, #8]          // Restore X20 from the stack
+    ADDI SP, SP, #16            // Deallocate stack space
+    BR LR                       // Return from is_shift
+
+insertion_sort:
+    PRNT X0
+    PRNL
+    PRNT X1
+    PRNL
+    ADD X9, X0, XZR             // X9 = a
+    ADD X10, X1, XZR            // X10 = n
+    ADDI X11, XZR, #1           // X11 = i = 1
+    SUBI SP, SP, #16            // Allocate space on the stack for saving registers
+    STUR X19, [SP, #0]          // Save X19 on the stack
+    STUR X20, [SP, #8]          // Save X20 on the stack
+
+insertion_sort_loop:
+    SUBS XZR, X11, X10          // Compare i with n
+    B.GE insertion_sort_done    // If i >= n, exit loop
+    LSL X16, X11, #3            // Calculate byte offset (i * 8)
+    ADD X16, X9, X16            // Calculate address of a[i]
+    LDUR X12, [X16, #0]         // X12 = a[i]
+    PRNT X12                    // Debug: Print the value of a[i]
+    PRNL
+    ADD X0, X9, XZR             // Set argument X0 = a
+    ADD X1, X11, XZR            // Set argument X1 = i
+    BL is_shift                 // Call is_shift(a, i)
+    ADD X2, X0, XZR             // X2 = return value from is_shift (index of the hole)
+    PRNT X2                     // Debug: Print the index of the hole
+    PRNL
+    LSL X2, X2, #3              // Calculate byte offset (hole index * 8)
+    ADD X2, X9, X2              // Calculate address of a[hole index]
+    STUR X12, [X2, #0]          // a[hole index] = a[i]
+    ADDI X11, X11, #1           // Increment i
+    B insertion_sort_loop       // Continue loop
+
+insertion_sort_done:
+    LDUR X19, [SP, #0]          // Restore X19 from the stack
+    LDUR X20, [SP, #8]          // Restore X20 from the stack
+    ADDI SP, SP, #16            // Deallocate stack space
+    BR LR                       // Return from insertion_sort
+
+binary_search:
+    PRNT X0
+    PRNL
+    PRNT X1
+    PRNL
+    PRNT X2
+    PRNL
+    PRNT X3
+    PRNL
+    ADD X19, X0, XZR            // X19 is the array address (a) --> X0
+    ADD X9, X1, XZR             // X9 is the starting value (inclusive) --> X1
+    ADD X10, X2, XZR            // X10 is the end value (exclusive)
+    ADD X20, X3, XZR            // X20 is the value we are searching for --> X3
+    binary_search_loop:
+        SUBS XZR, X10, X9
+        B.LT binary_search_not_found
+        ADD X11, X9, X10        // X11 = start + end
+        LSR X11, X11, #1        // X11 = X11 / 2
+        LSL X17, X11, #3        // Calculate byte offset (m * 8)
+        ADD X17, X19, X17       // Calculate address of a[m]
+        LDUR X12, [X17, #0]     // X12 = a[m]
+        PRNT X12                // Debug: Print the value of a[m]
+        PRNL
+        SUBS XZR, X12, X20
+        B.EQ binary_search_found
+        B.LT binary_search_less_than
+        SUBI X10, X11, #1
+        B binary_search_loop
+    binary_search_less_than:
+        ADDI X9, X11, #1
+        B binary_search_loop
+    binary_search_found:
+        ADD X0, X11, XZR
+        B binary_search_done
+    binary_search_not_found:
+        ADDI X0, XZR, #-1
+    binary_search_done:
+        BR LR
+
+end:
+    DUMP  
